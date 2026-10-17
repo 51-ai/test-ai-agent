@@ -109,4 +109,23 @@ export const agentAPI = {
   summarize: (messages: Message[], model?: string) => api.post('/api/agent/summarize', { messages, model }),
 };
 
+export const documentsAPI = {
+  /** 上传文档（base64）→ 解析 → 可选加入 RAG 知识库 */
+  importDocument: (body: {
+    fileName: string;
+    content: string;
+    title?: string;
+    addToRag?: boolean;
+  }) => api.post('/api/documents/import', body),
+
+  /** 获取支持的导出格式清单 */
+  getExportFormats: () => api.get('/api/documents/export-formats'),
+
+  /** 把文本导出为指定格式并作为文件下载 */
+  exportDocument: async (body: { text: string; format: string; title?: string }): Promise<Blob> => {
+    const res = await api.post('/api/documents/export', body, { responseType: 'blob' });
+    return res.data as Blob;
+  },
+};
+
 export default api;

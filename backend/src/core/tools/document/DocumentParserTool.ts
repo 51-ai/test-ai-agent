@@ -1,7 +1,15 @@
 /**
  * 文档解析工具集
  *
- * 支持解析：PDF、Word(.docx)、PowerPoint(.pptx)、以及**文档照片**（.jpg/.png/.webp/.bmp/.gif/.tiff，走 OCR）
+ * 支持解析：
+ * - 办公文档：PDF、Word(.docx)、PowerPoint(.pptx)、OpenDocument(.odt/.ods/.odp)
+ * - 电子书：EPUB
+ * - 文档照片：.jpg/.png/.webp/.bmp/.gif/.tiff（走 OCR）
+ * - 纯文本 / 标记类（零依赖，原生支持一大批格式）：
+ *   .txt .md/.markdown/.mdx .csv .tsv .json/.jsonl .xml .svg
+ *   .yaml/.yml .ini/.cfg/.conf/.toml/.env/.properties
+ *   .tex/.ltx(LaTeX) .org(Org-mode) .rst(reStructuredText)
+ *   .html/.htm/.xhtml .rtf .vcf/.ics(名片/日历) .log
  *
  * @module tools/document
  */
@@ -41,6 +49,93 @@ export interface DocumentParseResult {
 
 /** 文档解析支持的图片扩展名（照片识别入口） */
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.gif', '.tif', '.tiff']);
+
+// ==================== 多格式支持：纯文本 / 标记 / 结构化文档 ====================
+
+/**
+ * 原生支持的纯文本与标记类扩展名（零额外依赖，直接读取并按类型轻量清洗）。
+ * 覆盖一大批"小众"格式：Markdown、CSV/TSV、JSON/JSONL、YAML、XML、LaTeX、Org-mode、
+ * reStructuredText、HTML、RTF、VCF/ICS 名片日历、INI/TOML/ENV 配置、日志等。
+ */
+const PLAIN_TEXT_EXTENSIONS = new Set([
+  '.txt', '.text',
+  '.md', '.markdown', '.mdx',
+  '.csv', '.tsv',
+  '.json', '.jsonl', '.ndjson',
+  '.xml', '.svg',
+  '.yaml', '.yml',
+  '.ini', '.cfg', '.conf', '.config', '.toml', '.env', '.properties',
+  '.tex', '.ltx',
+  '.org',
+  '.rst',
+  '.html', '.htm', '.xhtml',
+  '.rtf',
+  '.vcf', '.ics',
+  '.log', '.logs'
+]);
+
+/** 去除 HTML/XML 标签，保留可见文本与基本换行 */
+function stripHtmlTags(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|h[1-6]|li|tr|section|article|blockquote)>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#(\d+);/g, (_m, n) => String.fromCharCode(parseInt(n, 10)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_m, n) => String.fromCharCode(parseInt(n, 16)));
+}
+
+/** 粗略去除 RTF 控制字，保留正文（RTF 为二进制风格的富文本，无法 100% 还原版式） */
+function stripRtf(rtf: string): string {
+  return rtf
+    .replace(/\\par\b/gi, '\n')
+    .replace(/\\tab\b/gi, '\t')
+    .replace(/\\line\b/gi, '\n')
+    .replace(/\\[a-z]+\d*\s?/gi, ' ')
+    .replace(/\\[{}]/g, '')
+    .replace(/[{}]/g, '')
+    .replace(/\n{2,}/g, '\n')
+    .trim();
+}
+
+/** 粗略去除 LaTeX 命令与环境，保留正文文字 */
+function stripLatex(tex: string): string {
+  return tex
+    .replace(/\\%.*$/gm, '')
+    .replace(/\\(begin|end)\s*\{[^}]*\}/g, ' ')
+    .replace(/\\[a-zA-Z]+\*?/g, ' ')
+    .replace(/[{}]/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+/** 按扩展名选择清洗策略，把"标记/富文本"变成可读纯文本 */
+function cleanPlainText(raw: string, ext: string): string {
+  switch (ext) {
+    case '.html':
+    case '.htm':
+    case '.xhtml':
+    case '.svg':
+    case '.xml':
+      return stripHtmlTags(raw);
+    case '.rtf':
+      return stripRtf(raw);
+    case '.tex':
+    case '.ltx':
+      return stripLatex(raw);
+    default:
+      return raw;
+  }
+}
+
+// 以下三个解析器类（PlainTextParser / OpenDocumentParser / EpubParser）定义已移至 BaseDocumentParser 之后。
 
 // ==================== 文本后处理：提升入库质量 ====================
 
@@ -118,6 +213,182 @@ export abstract class BaseDocumentParser {
     } catch {
       return { fileName, fileType, fileSize: 0 };
     }
+  }
+}
+
+// ==================== 多格式解析器（依赖 BaseDocumentParser，故定义在其后） ====================
+
+/**
+ * 纯文本 / 标记类解析器：零依赖，直接读取文件并按扩展名清洗。
+ */
+export class PlainTextParser extends BaseDocumentParser {
+  async parse(): Promise<DocumentParseResult> {
+    if (!this.validateFile()) {
+      return {
+        success: false,
+        content: '',
+        metadata: { ...this.getFileMetadata(), fileName: path.basename(this.filePath) },
+        error: '文件不存在'
+      };
+    }
+    try {
+      const buf = fs.readFileSync(this.filePath);
+      let raw = '';
+      try {
+        raw = buf.toString('utf8');
+      } catch {
+        raw = buf.toString('latin1');
+      }
+      const ext = path.extname(this.filePath).toLowerCase();
+      const content = cleanPlainText(raw, ext);
+      return {
+        success: true,
+        content: normalizeDocumentText(content),
+        metadata: { ...this.getFileMetadata() }
+      };
+    } catch (error) {
+      return {
+        success: false,
+        content: '',
+        metadata: this.getFileMetadata(),
+        error: `文本解析失败: ${error instanceof Error ? error.message : String(error)}`
+      };
+    }
+  }
+}
+
+/**
+ * OpenDocument 解析器：.odt(文本) / .ods(表格) / .odp(演示)，
+ * 均为 zip 包，正文在 content.xml 的 <text:p> 节点内。
+ */
+export class OpenDocumentParser extends BaseDocumentParser {
+  async parse(): Promise<DocumentParseResult> {
+    if (!this.validateFile()) {
+      return {
+        success: false,
+        content: '',
+        metadata: { ...this.getFileMetadata(), fileName: path.basename(this.filePath) },
+        error: '文件不存在'
+      };
+    }
+    try {
+      const JSZipModule = await import('jszip').catch(() => null);
+      if (!JSZipModule) return this.dependencyMissingResult();
+
+      const zip = new JSZipModule.default();
+      const content = await zip.loadAsync(fs.readFileSync(this.filePath));
+      const xmlFile = content.file('content.xml');
+      if (!xmlFile) {
+        return {
+          success: false,
+          content: '',
+          metadata: this.getFileMetadata(),
+          error: '未在文件中找到 content.xml，可能不是有效的 OpenDocument 文件'
+        };
+      }
+      const xml = await xmlFile.async('string');
+      const text = xml
+        .replace(/<text:p[^>]*>/g, '\n')
+        .replace(/<\/text:p>/g, '\n')
+        .replace(/<[^>]+>/g, '')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&apos;/g, "'")
+        .replace(/\n{2,}/g, '\n')
+        .trim();
+
+      return {
+        success: true,
+        content: normalizeDocumentText(text),
+        metadata: { ...this.getFileMetadata() }
+      };
+    } catch (error) {
+      return {
+        success: false,
+        content: '',
+        metadata: this.getFileMetadata(),
+        error: `OpenDocument 解析失败: ${error instanceof Error ? error.message : String(error)}`
+      };
+    }
+  }
+
+  private dependencyMissingResult(): DocumentParseResult {
+    return {
+      success: false,
+      content: '',
+      metadata: this.getFileMetadata(),
+      error: 'OpenDocument 解析需要 jszip。请运行: npm install jszip'
+    };
+  }
+}
+
+/**
+ * EPUB 电子书解析器：zip 包，正文为 OEBPS 下的 XHTML 文件。
+ */
+export class EpubParser extends BaseDocumentParser {
+  async parse(): Promise<DocumentParseResult> {
+    if (!this.validateFile()) {
+      return {
+        success: false,
+        content: '',
+        metadata: { ...this.getFileMetadata(), fileName: path.basename(this.filePath) },
+        error: '文件不存在'
+      };
+    }
+    try {
+      const JSZipModule = await import('jszip').catch(() => null);
+      if (!JSZipModule) return this.dependencyMissingResult();
+
+      const zip = new JSZipModule.default();
+      const archive = await zip.loadAsync(fs.readFileSync(this.filePath));
+
+      const htmlNames = Object.keys(archive.files)
+        .filter((n) => /\.(x?html?|htm)$/i.test(n) && !/META-INF|container\.xml|mimetype/i.test(n))
+        .sort();
+
+      const texts: string[] = [];
+      for (const name of htmlNames) {
+        const file = archive.file(name);
+        if (!file) continue;
+        const html = await file.async('string');
+        const cleaned = stripHtmlTags(html).trim();
+        if (cleaned) texts.push(cleaned);
+      }
+
+      const joined = normalizeDocumentText(texts.join('\n\n'));
+      if (!joined) {
+        return {
+          success: false,
+          content: '',
+          metadata: this.getFileMetadata(),
+          error: 'EPUB 内未找到可读正文'
+        };
+      }
+
+      return {
+        success: true,
+        content: joined,
+        metadata: { ...this.getFileMetadata(), pageCount: htmlNames.length }
+      };
+    } catch (error) {
+      return {
+        success: false,
+        content: '',
+        metadata: this.getFileMetadata(),
+        error: `EPUB 解析失败: ${error instanceof Error ? error.message : String(error)}`
+      };
+    }
+  }
+
+  private dependencyMissingResult(): DocumentParseResult {
+    return {
+      success: false,
+      content: '',
+      metadata: this.getFileMetadata(),
+      error: 'EPUB 解析需要 jszip。请运行: npm install jszip'
+    };
   }
 }
 
@@ -490,11 +761,24 @@ export class DocumentParserService {
             filePath,
             '旧版 .ppt 是二进制格式，无法直接解析；请在 PowerPoint / WPS 中另存为 .pptx 后再上传'
           );
+        case '.odt':
+        case '.ods':
+        case '.odp':
+          parser = new OpenDocumentParser(filePath);
+          break;
+        case '.epub':
+          parser = new EpubParser(filePath);
+          break;
         default:
+          if (PLAIN_TEXT_EXTENSIONS.has(ext)) {
+            parser = new PlainTextParser(filePath);
+            break;
+          }
           return this.unsupportedFormat(
             filePath,
-            `不支持的文件类型: ${ext || '(无扩展名)'}；支持 PDF / .docx / .pptx，` +
-              '以及文档照片 .jpg .jpeg / .png / .webp / .bmp / .gif / .tif .tiff'
+            `不支持的文件类型: ${ext || '(无扩展名)'}；支持 PDF / .docx / .pptx / .odt .ods .odp / .epub，` +
+              '以及文档照片 .jpg .jpeg / .png / .webp / .bmp / .gif / .tif .tiff，' +
+              '还有纯文本类 .txt .md .csv .json .xml .yaml .tex .org .rst .html .rtf 等'
           );
       }
 

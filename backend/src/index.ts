@@ -15,6 +15,7 @@ import agentSystemRoutes from './api/agent-system';
 import developerRoutes from './api/developer';
 import adminRoutes from './api/admin';
 import mfaRoutes from './api/mfa';
+import documentsRoutes from './api/documents';
 import { inputGuard, outputGuard } from './middlewares/ioGuard';
 
 // Trigger restart
@@ -101,6 +102,7 @@ app.use('/api/agent-system', agentSystemRoutes);
 app.use('/api/dev', developerRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/mfa', mfaRoutes);
+app.use('/api/documents', documentsRoutes);
 
 // 训练可视化仪表盘等本地静态页面（无构建依赖，直接伺服 public/）
 // 路径解析：优先编译产物内的 dist/public（build 时拷贝），回退源码目录 public（ts-node/tsx 直跑 src 时）

@@ -1,8 +1,21 @@
 import { useState, useEffect, useRef } from 'react';
-import { conversationAPI, agentAPI, type AgentResponse, type Conversation, type Message } from '../services/api';
+import { conversationAPI, agentAPI, documentsAPI, type AgentResponse, type Conversation, type Message } from '../services/api';
 import { useLanguage } from '../i18n/LanguageContext';
-import { Send, Plus, MessageSquare, Trash2, Edit2, LogOut, Wrench, Zap, Brain, Bolt } from 'lucide-react';
+import { Send, Plus, MessageSquare, Trash2, Edit2, LogOut, Wrench, Zap, Brain, Bolt, Paperclip } from 'lucide-react';
 import LanguageToggle from './LanguageToggle';
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = (reader.result as string) || '';
+      // 去掉 data:...;base64, 前缀，只保留纯 base64
+      resolve(result.split(',')[1] || '');
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
 
 interface ChatProps {
   onLogout: () => void;
@@ -38,6 +51,8 @@ export default function Chat({ onLogout }: ChatProps) {
   const [lastTokenUsage, setLastTokenUsage] = useState<TokenUsage | null>(null);
   const [totalSessionTokens, setTotalSessionTokens] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
 
   // 保存模型选择到 localStorage
   useEffect(() => {
@@ -111,18 +126,18 @@ export default function Chat({ onLogout }: ChatProps) {
     }
   };
 
-  const handleSend = async () => {
-    if (!message.trim() || loading) return;
+  const sendWithText = async (text: string) => {
+    if (!text.trim() || loading) return;
 
     setLoading(true);
-    
+
     // 添加用户消息到本地状态
     const userMessage = {
-      content: message,
+      content: text,
       role: 'user' as const,
       timestamp: new Date().toISOString()
     };
-    
+
     if (selectedConversation) {
       setSelectedConversation(prev => prev ? {
         ...prev,
@@ -132,15 +147,15 @@ export default function Chat({ onLogout }: ChatProps) {
 
     try {
       // 使用 agentAPI.chat 获取响应
-      const response = await agentAPI.chat(message, selectedModel);
+      const response = await agentAPI.chat(text, selectedModel);
       const agentResponse = response.data as AgentResponse;
-      
+
       // 更新 token 使用量
       if (agentResponse.usage) {
         setLastTokenUsage(agentResponse.usage);
         setTotalSessionTokens(prev => prev + agentResponse.usage!.totalTokens);
       }
-      
+
       // 添加助手消息
       const assistantMessage = {
         content: agentResponse.response,
@@ -148,9 +163,9 @@ export default function Chat({ onLogout }: ChatProps) {
         timestamp: new Date().toISOString(),
         metadata: { emotion: agentResponse.emotion }
       };
-      
+
       let currentConvId = '';
-      
+
       if (selectedConversation) {
         currentConvId = selectedConversation._id;
         const updatedMessages = [...selectedConversation.messages, userMessage, assistantMessage];
@@ -158,10 +173,10 @@ export default function Chat({ onLogout }: ChatProps) {
           ...prev,
           messages: updatedMessages
         } : null);
-        
+
         // 自动生成对话标题（当对话有2条消息且标题是默认标题时）
-        if (updatedMessages.length >= 2 && 
-            (selectedConversation.title === 'New Conversation' || 
+        if (updatedMessages.length >= 2 &&
+            (selectedConversation.title === 'New Conversation' ||
              selectedConversation.title.startsWith('temp-') ||
              selectedConversation.title.length <= 10)) {
           generateConversationTitle(updatedMessages, currentConvId);
@@ -171,18 +186,18 @@ export default function Chat({ onLogout }: ChatProps) {
         currentConvId = 'temp-' + Date.now();
         const newConv = {
           _id: currentConvId,
-          title: message.substring(0, 30),
+          title: text.substring(0, 30),
           messages: [userMessage, assistantMessage],
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         } as Conversation;
         setSelectedConversation(newConv);
         setConversations(prev => [newConv, ...prev]);
-        
+
         // 自动生成对话标题
         generateConversationTitle([userMessage, assistantMessage], currentConvId);
       }
-      
+
       setMessage('');
     } catch (err) {
       // Silently handle error
@@ -191,10 +206,66 @@ export default function Chat({ onLogout }: ChatProps) {
     }
   };
 
+  const handleSend = async () => {
+    if (!message.trim() || loading) return;
+    await sendWithText(message);
+  };
+
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
+    }
+  };
+
+  // 支持导出的格式（与后端 DocumentExporter 对齐）
+  const EXPORT_FORMATS = ['md', 'txt', 'html', 'json', 'csv', 'xml', 'tex', 'org', 'rst', 'rtf'];
+
+  /** 接收文档：选文件 → base64 → 上传解析 → 自动把内容发给 AI */
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // 允许重复选择同一文件
+    if (!file) return;
+    setUploading(true);
+    try {
+      const base64 = await fileToBase64(file);
+      const res = await documentsAPI.importDocument({
+        fileName: file.name,
+        content: base64,
+        title: file.name,
+        addToRag: true
+      });
+      if (res.data?.success) {
+        const content: string = res.data.data?.content || '';
+        const userText =
+          `【我上传的文档《${file.name}》，请先阅读它，然后回答我接下来的问题】\n\n` +
+          content.slice(0, 6000);
+        await sendWithText(userText);
+        alert(`已接收文档《${file.name}》，并把内容发给了 AI，你可以接着提问啦。`);
+      } else {
+        alert('文档解析失败：' + (res.data?.error || '未知错误'));
+      }
+    } catch (err: any) {
+      alert('上传失败：' + (err?.humanized?.message || err?.message || '网络错误'));
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  /** 生成文档：把 AI 回答导出为指定格式并下载 */
+  const handleExport = async (text: string, format: string, title: string) => {
+    try {
+      const blob = await documentsAPI.exportDocument({ text, format, title });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${title || '回答'}.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert('导出失败：' + (err?.humanized?.message || err?.message || '网络错误'));
     }
   };
 
@@ -362,6 +433,23 @@ export default function Chat({ onLogout }: ChatProps) {
                       : 'bg-white text-gray-800 rounded-bl-md shadow-sm'
                   }`}>
                     <p className="whitespace-pre-wrap">{msg.content}</p>
+                    {msg.role === 'assistant' && (
+                      <details className="mt-2">
+                        <summary className="cursor-pointer text-xs text-primary-600 hover:underline select-none">导出为 ▾</summary>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {EXPORT_FORMATS.map((f) => (
+                            <button
+                              key={f}
+                              type="button"
+                              onClick={() => handleExport(msg.content, f, selectedConversation?.title || '回答')}
+                              className="px-2 py-0.5 text-xs bg-gray-100 hover:bg-gray-200 rounded text-gray-700"
+                            >
+                              {f.toUpperCase()}
+                            </button>
+                          ))}
+                        </div>
+                      </details>
+                    )}
                     <div className={`flex items-center gap-2 mt-1 text-xs ${
                       msg.role === 'user' ? 'text-primary-200' : 'text-gray-400'
                     }`}>
@@ -378,6 +466,21 @@ export default function Chat({ onLogout }: ChatProps) {
 
             <div className="p-4 bg-white border-t border-gray-200">
               <div className="flex items-end gap-3">
+                <button type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  title="上传文档给 AI（支持 PDF/Word/Excel/ODT/EPUB/Markdown/CSV/JSON/LaTeX/HTML/RTF/图片等）"
+                  className="bg-gray-100 text-gray-600 p-3 rounded-xl hover:bg-gray-200 transition disabled:opacity-50"
+                >
+                  <Paperclip className="w-5 h-5" />
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  onChange={handleFileChange}
+                  accept=".pdf,.docx,.pptx,.odt,.ods,.odp,.epub,.txt,.md,.markdown,.csv,.json,.xml,.yaml,.yml,.tex,.org,.rst,.html,.rtf,.jpg,.jpeg,.png,.webp,.gif,.bmp,.tif,.tiff"
+                />
                 <textarea
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
