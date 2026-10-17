@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Login from './components/Login';
 import Register from './components/Register';
@@ -6,36 +5,12 @@ import Chat from './components/Chat';
 import AdminDashboard from './components/AdminDashboard';
 import AISecurityAnalyst from './components/AISecurityAnalyst';
 import DeveloperDashboard from './components/DeveloperDashboard';
-import { authAPI } from './services/api';
 import { useLanguage } from './i18n/LanguageContext';
+import { AuthProvider, useAuth } from './authContext';
 
-export default function App() {
+function AppRoutes() {
   const { t } = useLanguage();
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      authAPI.getMe()
-        .then(() => {
-          setIsLoggedIn(true);
-        })
-        .catch(() => {
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-        })
-        .finally(() => setLoading(false));
-    } else {
-      setLoading(false);
-    }
-  }, []);
-
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    setIsLoggedIn(false);
-  };
+  const { isLoggedIn, loading, logout } = useAuth();
 
   if (loading) {
     return (
@@ -57,12 +32,20 @@ export default function App() {
       />
       <Route
         path="/chat"
-        element={isLoggedIn ? <Chat onLogout={handleLogout} /> : <Navigate to="/login" />}
+        element={isLoggedIn ? <Chat onLogout={logout} /> : <Navigate to="/login" />}
       />
       <Route path="/admin" element={isLoggedIn ? <AdminDashboard /> : <Navigate to="/login" />} />
       <Route path="/admin/security" element={isLoggedIn ? <AISecurityAnalyst /> : <Navigate to="/login" />} />
       <Route path="/dev" element={isLoggedIn ? <DeveloperDashboard /> : <Navigate to="/login" />} />
       <Route path="*" element={<Navigate to={isLoggedIn ? "/chat" : "/login"} />} />
     </Routes>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppRoutes />
+    </AuthProvider>
   );
 }

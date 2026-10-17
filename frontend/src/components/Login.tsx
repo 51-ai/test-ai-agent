@@ -4,12 +4,14 @@ import axios from 'axios';
 // 注意：这里 Login 用的是 axiosInstance 的 .post() 方法，所以必须 default 导入 api.ts
 // 其他组件 import { authAPI } from '../services/api' 是具名方法集（login/register/...），二者用途不同
 import authAPI from '../services/api';
+import { useAuth } from '../authContext';
 
 export default function Login() {
   const [formData, setFormData] = useState({ username: '', email: '', password: '' });
   const [isRegister, setIsRegister] = useState(false);
   const [message, setMessage] = useState('');
   const navigate = useNavigate();
+  const { login } = useAuth();
 
   const [mfaRequired, setMfaRequired] = useState(false);
   const [mfaEmail, setMfaEmail] = useState('');
@@ -40,21 +42,10 @@ export default function Login() {
         : { email: formData.email, password: formData.password };
       const { data } = await authAPI.post(endpoint, payload);
 
-      if (!isRegister && data && data.token) {
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data.user));
-        navigate('/admin');
-      } else if (isRegister && data && data.token) {
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data.user));
-        navigate('/chat');
+      if (data && data.token) {
+        login(data.token, data.user);
+        navigate(isRegister ? '/chat' : '/admin');
       } else {
-        const token = data.token;
-        if (token) {
-          localStorage.setItem('token', token);
-          localStorage.setItem('user', JSON.stringify(data.user || data));
-          navigate('/chat');
-        }
         setMessage(isRegister ? '注册成功！请登录' : '登录成功！');
       }
     } catch (error: any) {
@@ -84,8 +75,7 @@ export default function Login() {
 
       const { data } = await axios.post('/api/auth/mfa/login', payload);
       if (data?.token) {
-        localStorage.setItem('token', data.token);
-        if (data?.user) localStorage.setItem('user', JSON.stringify(data.user));
+        login(data.token, data.user);
         setMfaRequired(false);
         navigate('/admin');
       } else {

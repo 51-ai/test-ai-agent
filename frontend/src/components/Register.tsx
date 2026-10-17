@@ -2,16 +2,14 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { authAPI } from '../services/api';
 import { useLanguage } from '../i18n/LanguageContext';
+import { useAuth } from '../authContext';
 import { UserPlus, Mail, Lock, User } from 'lucide-react';
 import LanguageToggle from './LanguageToggle';
 
-interface RegisterProps {
-  onLogin?: () => void;
-}
-
-export default function Register({ onLogin }: RegisterProps) {
+export default function Register() {
   const navigate = useNavigate();
   const { t } = useLanguage();
+  const { login } = useAuth();
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -25,9 +23,7 @@ export default function Register({ onLogin }: RegisterProps) {
 
     try {
       const response = await authAPI.register(username, email, password);
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
-      onLogin?.();
+      login(response.data.token, response.data.user);
       navigate('/chat');
     } catch (err) {
       setError(t.register.error);
