@@ -1,0 +1,146 @@
+:root {
+  --bg: #0f1115;
+  --panel: #171a21;
+  --panel-border: #262b36;
+  --text: #e6e9ef;
+  --text-dim: #8b93a3;
+  --accent: #4f8cff;
+  --green: #3fb27f;
+  --red: #e05656;
+  --amber: #d9a13b;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 14px;
+  min-height: 100vh;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--panel-border);
+  background: var(--panel);
+}
+
+.brand { display: flex; align-items: center; gap: 12px; }
+.logo { font-size: 28px; }
+.brand h1 { font-size: 18px; font-weight: 600; }
+.subtitle { color: var(--text-dim); font-size: 12px; }
+
+.controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.auto-refresh { color: var(--text-dim); font-size: 13px; display: flex; align-items: center; gap: 6px; cursor: pointer; }
+
+.btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.btn:hover { filter: brightness(1.1); }
+.btn-ghost { background: transparent; border: 1px solid var(--panel-border); color: var(--text); }
+
+/* 历史范围下拉：沿用幽灵按钮外观 */
+select.btn { appearance: none; padding: 7px 10px; background: var(--panel); }
+
+/* 数据源徽标：显示「持久化 / 内存 / 无数据」与记录总数 */
+.history-badge {
+  font-size: 12px;
+  color: var(--text-dim);
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  padding: 4px 10px;
+  white-space: nowrap;
+}
+.history-badge.is-persisted { color: var(--green); border-color: rgba(63, 178, 127, 0.5); }
+.history-badge.is-memory { color: var(--yellow, #d9a13b); border-color: rgba(217, 161, 59, 0.5); }
+
+main { padding: 20px 24px 40px; max-width: 1280px; margin: 0 auto; }
+
+.banner {
+  background: rgba(224, 86, 86, 0.12);
+  border: 1px solid var(--red);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  color: #ffb4b4;
+  white-space: pre-wrap;
+}
+.hidden { display: none; }
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+.card-label { color: var(--text-dim); font-size: 12px; margin-bottom: 6px; }
+.card-value { font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.card-sub { color: var(--text-dim); font-size: 12px; margin-top: 4px; }
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  padding: 16px;
+}
+.panel h2 { font-size: 15px; font-weight: 600; margin-bottom: 12px; }
+
+.chart-wrap { position: relative; height: 240px; }
+.hint { color: var(--text-dim); font-size: 12px; margin-top: 8px; }
+
+.table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.table th, .table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--panel-border); }
+.table th { color: var(--text-dim); font-weight: 500; font-size: 12px; }
+.table td:last-child { text-align: right; }
+
+dialog {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  padding: 20px;
+  min-width: 360px;
+}
+dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
+dialog h2 { font-size: 16px; margin-bottom: 8px; }
+dialog input {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 10px 12px;
+  margin: 12px 0;
+  font-size: 14px;
+}
+.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+.rate-good { color: var(--green); }
+.rate-bad { color: var(--red); }
+.rate-mid { color: var(--amber); }

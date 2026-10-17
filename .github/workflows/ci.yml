@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  # 防退化护栏：纯 Node 静态扫描，无需安装依赖，最快失败
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # 检查：伪实现（hash+三角函数伪造向量/硬编码返回/TODO mock 占位）、
+  # 僵尸依赖、无断言的假测试、同步函数里调用异步向量化、硬编码密钥
+      - name: 防退化护栏
+        run: node backend/scripts/guard.mjs
+
+  verify:
+    runs-on: ubuntu-latest
+    needs: guard
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            backend/package-lock.json
+
+      - name: 安装依赖
+        run: npm run install:all
+
+      - name: 类型检查
+        run: npm run typecheck
+
+      # 单元测试：排除 competitive-analysis-real（真实 LLM + 联网，CI 环境不可达，
+      # 未配置凭证时自动跳过，其余用例 mock 隔离 DB/LLM/向量模型，无需密钥）
+      - name: 单元测试
+        run: npx jest --testPathIgnorePatterns competitive-analysis-real
+        working-directory: backend
+
+      # 构建后端（tsc 编译 + public 静态资源拷入 dist）
+      - name: 构建
+        run: npm run build

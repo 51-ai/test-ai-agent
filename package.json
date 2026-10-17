@@ -1,0 +1,76 @@
+{
+  "name": "ai-agent-monorepo",
+  "version": "1.0.0",
+  "description": "AI Agent System - Monorepo (Backend + Frontend)",
+  "private": true,
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "cd backend && npm start",
+    "dev": "cd backend && npm run dev",
+    "build": "cd backend && npm run build",
+    "typecheck": "cd backend && npm run typecheck",
+    "test": "cd backend && npm test",
+    "lint": "cd backend && npm run lint",
+    "start:backend": "cd backend && npm start",
+    "start:frontend": "cd frontend && npm start",
+    "build:backend": "cd backend && npm run build",
+    "build:frontend": "cd frontend && npm run build",
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "electron:dev": "cross-env NODE_ENV=development electron .",
+    "electron:build": "npm run build:backend && npm run build:frontend && electron-builder --win --x64",
+    "electron:start": "electron ."
+  },
+  "build": {
+    "appId": "com.aiagent.app",
+    "productName": "AI Agent",
+    "directories": {
+      "output": "dist-electron-new"
+    },
+    "files": [
+      "electron/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "backend",
+        "to": "backend",
+        "filter": ["**/*", "!**/node_modules/.cache/**"]
+      },
+      {
+        "from": "frontend/dist",
+        "to": "frontend/dist",
+        "filter": ["**/*"]
+      }
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "backend/node_modules/mongodb-memory-server/**/*",
+      "backend/node_modules/@mongosh/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "dir",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "frontend/public/icon.ico",
+      "signingHashAlgorithms": [],
+      "sign": false,
+      "signAndEditExecutable": false
+    },
+    "publish": null,
+    "npmRebuild": true
+  },
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "dependencies": {
+    "openai": "^6.44.0"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1"
+  }
+}

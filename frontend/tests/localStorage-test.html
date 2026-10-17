@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LocalStorage 持久化测试</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #1a1a2e;
+      color: #eaeaea;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .container { max-width: 900px; margin: 0 auto; }
+    h1 {
+      text-align: center;
+      color: #00d9ff;
+      margin-bottom: 30px;
+      font-size: 1.8rem;
+    }
+    .test-panel {
+      background: #16213e;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+      border: 1px solid #0f3460;
+    }
+    .test-panel h2 {
+      color: #00d9ff;
+      margin-bottom: 15px;
+      font-size: 1.2rem;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .test-panel h2 .icon { font-size: 1.5rem; }
+    .test-section {
+      background: #1a1a2e;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 15px;
+    }
+    .test-section h3 {
+      color: #e94560;
+      margin-bottom: 10px;
+      font-size: 1rem;
+    }
+    .test-result {
+      padding: 12px;
+      border-radius: 6px;
+      margin-top: 10px;
+      font-family: 'Consolas', monospace;
+      font-size: 0.9rem;
+    }
+    .test-result.pass { background: #0d3320; border-left: 4px solid #00ff88; }
+    .test-result.fail { background: #3d0d0d; border-left: 4px solid #ff4444; }
+    .test-result.info { background: #1a2a3a; border-left: 4px solid #00d9ff; }
+    .btn {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      margin-right: 10px;
+      margin-bottom: 10px;
+      transition: transform 0.1s, box-shadow 0.2s;
+    }
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4); }
+    .btn:active { transform: translateY(0); }
+    .btn.danger { background: linear-gradient(135deg, #f5576c 0%, #f093fb 100%); }
+    .btn.success { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); }
+    .btn.warning { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 15px;
+      margin-top: 20px;
+    }
+    .stat-card {
+      background: #0f3460;
+      padding: 15px;
+      border-radius: 8px;
+      text-align: center;
+    }
+    .stat-card .value {
+      font-size: 2rem;
+      font-weight: bold;
+      color: #00d9ff;
+    }
+    .stat-card .label { color: #888; font-size: 0.85rem; margin-top: 5px; }
+    .log-area {
+      background: #0a0a15;
+      border-radius: 6px;
+      padding: 15px;
+      font-family: 'Consolas', monospace;
+      font-size: 0.85rem;
+      max-height: 300px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .log-entry { padding: 4px 0; border-bottom: 1px solid #1a1a2e; }
+    .log-entry.error { color: #ff4444; }
+    .log-entry.success { color: #00ff88; }
+    .log-entry.info { color: #00d9ff; }
+    .log-entry.warn { color: #ffaa00; }
+    .data-preview {
+      background: #0a0a15;
+      border-radius: 6px;
+      padding: 15px;
+      font-family: 'Consolas', monospace;
+      font-size: 0.8rem;
+      max-height: 200px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+    .scenario-list { display: flex; flex-wrap: wrap; gap: 10px; margin: 15px 0; }
+    .scenario-btn {
+      background: #0f3460;
+      border: 1px solid #00d9ff;
+      color: #00d9ff;
+      padding: 8px 16px;
+      border-radius: 20px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .scenario-btn:hover { background: #00d9ff; color: #1a1a2e; }
+    .scenario-btn.active { background: #00d9ff; color: #1a1a2e; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🧪 LocalStorage 持久化测试套件</h1>
+
+    <!-- 测试统计 -->
+    <div class="stats">
+      <div class="stat-card">
+        <div class="value" id="totalTests">0</div>
+        <div class="label">总测试数</div>
+      </div>
+      <div class="stat-card">
+        <div class="value" id="passedTests" style="color: #00ff88">0</div>
+        <div class="label">通过</div>
+      </div>
+      <div class="stat-card">
+        <div class="value" id="failedTests" style="color: #ff4444">0</div>
+        <div class="label">失败</div>
+      </div>
+      <div class="stat-card">
+        <div class="value" id="storageSize">0 KB</div>
+        <div class="label">存储使用</div>
+      </div>
+    </div>
+
+    <!-- 快速场景 -->
+    <div class="test-panel">
+      <h2><span class="icon">🎯</span> 快速测试场景</h2>
+      <div class="scenario-list">
+        <button class="scenario-btn" onclick="runScenario('refresh')">🔄 模拟页面刷新</button>
+        <button class="scenario-btn" onclick="runScenario('corrupt')">💥 模拟数据损坏</button>
+        <button class="scenario-btn" onclick="runScenario('version')">🔀 模拟版本升级</button>
+        <button class="scenario-btn" onclick="runScenario('clear')">🗑️ 模拟存储清除</button>
+        <button class="scenario-btn" onclick="runScenario('overflow')">📦 模拟存储溢出</button>
+        <button class="scenario-btn" onclick="runScenario('all')">🚀 运行全部测试</button>
+      </div>
+    </div>
+
+    <!-- 基础功能测试 -->
+    <div class="test-panel">
+      <h2><span class="icon">📦</span> 基础存储功能</h2>
+
+      <div class="test-section">
+        <h3>测试 1: 基本保存和读取</h3>
+        <button class="btn" onclick="testBasicSave()">执行测试</button>
+        <div id="result1" class="test-result" style="display:none;"></div>
+      </div>
+
+      <div class="test-section">
+        <h3>测试 2: 数据持久化 (页面刷新后)</h3>
+        <button class="btn" onclick="testPersistence()">执行测试</button>
+        <div id="result2" class="test-result" style="display:none;"></div>
+      </div>
+
+      <div class="test-section">
+        <h3>测试 3: 复杂数据结构</h3>
+        <button class="btn" onclick="testComplexData()">执行测试</button>
+        <div id="result3" class="test-result" style="display:none;"></div>
+      </div>
+    </div>
+
+    <!-- 数据损坏测试 -->
+    <div class="test-panel">
+      <h2><span class="icon">⚠️</span> 数据损坏场景</h2>
+
+      <div class="test-section">
+        <h3>测试 4: JSON 解析失败</h3>
+        <button class="btn danger" onclick="testCorruptedJson()">执行测试</button>
+        <div id="result4" class="test-result" style="display:none;"></div>
+      </div>
+
+      <div class="test-section">
+        <h3>测试 5: 空值/未定义值</h3>
+        <button class="btn danger" onclick="testEmptyValues()">执行测试</button>
+        <div id="result5" class="test-result" style="display:none;"></div>
+      </div>
+
+      <div class="test-section">
+        <h3>测试 6: 版本不兼容</h3>
+        <button class="btn warning" onclick="testVersionMismatch()">执行测试</button>
+        <div id="result6" class="test-result" style="display:none;"></div>
+      </div>
+    </div>
+
+    <!-- 边界情况测试 -->
+    <div class="test-panel">
+      <h2><span class="icon">🔬</span> 边界情况</h2>
+
+      <div class="test-section">
+        <h3>测试 7: 存储配额超限</h3>
+        <button class="btn warning" onclick="testQuotaExceeded()">执行测试</button>
+        <div id="result7" class="test-result" style="display:none;"></div>
+      </div>
+
+      <div class="test-section">
+        <h3>测试 8: 特殊字符处理</h3>
+        <button class="btn" onclick="testSpecialChars()">执行测试</button>
+        <div id="result8" class="test-result" style="display:none;"></div>
+      </div>
+
+      <div class="test-section">
+        <h3>测试 9: 大数据量性能</h3>
+        <button class="btn" onclick="testLargeData()">执行测试</button>
+        <div id="result9" class="test-result" style="display:none;"></div>
+      </div>
+    </div>
+
+    <!-- 数据预览 -->
+    <div class="test-panel">
+      <h2><span class="icon">📊</span> 当前存储状态</h2>
+      <button class="btn" onclick="refreshStoragePreview()">🔄 刷新</button>
+      <button class="btn danger" onclick="clearAllStorage()">🗑️ 清除全部</button>
+      <div id="storagePreview" class="data-preview" style="margin-top: 15px;">加载中...</div>
+    </div>
+
+    <!-- 操作日志 -->
+    <div class="test-panel">
+      <h2><span class="icon">📋</span> 操作日志</h2>
+      <button class="btn" onclick="clearLog()">🗑️ 清空日志</button>
+      <div id="logArea" class="log-area" style="margin-top: 15px;"></div>
+    </div>
+  </div>
+
+  <script>
+    // ==================== 测试框架 ====================
+    const STORAGE_KEY = 'test_data';
+    const VERSION_KEY = 'data_version';
+    const CURRENT_VERSION = 2;
+
+    let testResults = { total: 0, passed: 0, failed: 0 };
+
+    function log(message, type = 'info') {
+      const logArea = document.getElementById('logArea');
+      const timestamp = new Date().toLocaleTimeString();
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type}`;
+      entry.textContent = `[${timestamp}] ${message}`;
+      logArea.insertBefore(entry, logArea.firstChild);
+    }
+
+    function showResult(id, passed, message) {
+      const result = document.getElementById(id);
+      result.style.display = 'block';
+      result.className = `test-result ${passed ? 'pass' : 'fail'}`;
+      result.innerHTML = passed
+        ? `<strong>✅ 通过</strong><br>${message}`
+        : `<strong>❌ 失败</strong><br>${message}`;
+
+      testResults.total++;
+      if (passed) {
+        testResults.passed++;
+        log(message, 'success');
+      } else {
+        testResults.failed++;
+        log(message, 'error');
+      }
+      updateStats();
+    }
+
+    function updateStats() {
+      document.getElementById('totalTests').textContent = testResults.total;
+      document.getElementById('passedTests').textContent = testResults.passed;
+      document.getElementById('failedTests').textContent = testResults.failed;
+
+      // 计算存储使用
+      let totalSize = 0;
+      for (let key in localStorage) {
+        if (localStorage.hasOwnProperty(key)) {
+          totalSize += localStorage[key].length * 2; // UTF-16
+        }
+      }
+      document.getElementById('storageSize').textContent = (totalSize / 1024).toFixed(1) + ' KB';
+    }
+
+    function refreshStoragePreview() {
+      const preview = document.getElementById('storagePreview');
+      const keys = Object.keys(localStorage).filter(k => k.startsWith('dev_dashboard_') || k === STORAGE_KEY);
+
+      if (keys.length === 0) {
+        preview.innerHTML = '<span style="color: #888;">暂无测试数据</span>';
+        return;
+      }
+
+      let html = '';
+      for (const key of keys) {
+        try {
+          const data = JSON.parse(localStorage.getItem(key));
+          const size = (localStorage.getItem(key).length / 1024).toFixed(2);
+          html += `<div style="margin-bottom: 10px;">
+            <strong style="color: #00d9ff;">${key}</strong> (${size} KB)
+            <pre style="background: #0a0a15; padding: 8px; margin-top: 5px; border-radius: 4px; max-height: 100px; overflow-y: auto;">${
+              JSON.stringify(data, null, 2).substring(0, 500)
+            }${JSON.stringify(data).length > 500 ? '...' : ''}</pre>
+          </div>`;
+        } catch (e) {
+          html += `<div style="margin-bottom: 10px; color: #ff4444;">
+            <strong>${key}</strong> - 解析失败: ${e.message}
+          </div>`;
+        }
+      }
+      preview.innerHTML = html;
+      updateStats();
+    }
+
+    function clearLog() {
+      document.getElementById('logArea').innerHTML = '';
+      log('日志已清空', 'info');
+    }
+
+    function clearAllStorage() {
+      if (confirm('确定要清除所有 localStorage 吗？这将删除所有测试数据！')) {
+        const keys = Object.keys(localStorage).filter(k => k.startsWith('dev_dashboard_') || k === STORAGE_KEY || k === VERSION_KEY);
+        keys.forEach(k => localStorage.removeItem(k));
+        log('已清除所有测试存储', 'warn');
+        refreshStoragePreview();
+      }
+    }
+
+    // ==================== 辅助函数 ====================
+    function saveToStorage(key, data) {
+      try {
+        localStorage.setItem(key, JSON.stringify(data));
+        return true;
+      } catch (e) {
+        log(`保存失败: ${e.message}`, 'error');
+        return false;
+      }
+    }
+
+    function loadFromStorage(key, defaultValue = null) {
+      try {
+        const stored = localStorage.getItem(key);
+        if (stored === null) return defaultValue;
+        const parsed = JSON.parse(stored);
+
+        // 检查版本兼容性
+        if (key === STORAGE_KEY) {
+          const storedVersion = parsed._version || 1;
+          if (storedVersion !== CURRENT_VERSION) {
+            log(`数据版本不匹配: 存储=${storedVersion}, 当前=${CURRENT_VERSION}`, 'warn');
+            // 返回默认值，触发迁移逻辑
+            return defaultValue;
+          }
+        }
+
+        return parsed;
+      } catch (e) {
+        log(`加载失败 (${key}): ${e.message}`, 'error');
+        return defaultValue;
+      }
+    }
+
+    // ==================== 测试用例 ====================
+
+    // 测试 1: 基本保存和读取
+    function testBasicSave() {
+      const testData = {
+        message: 'Hello World',
+        number: 42,
+        array: [1, 2, 3],
+        nested: { key: 'value' },
+        _version: CURRENT_VERSION
+      };
+
+      const saved = saveToStorage(STORAGE_KEY, testData);
+      if (!saved) {
+        showResult('result1', false, '保存操作失败');
+        return;
+      }
+
+      const loaded = loadFromStorage(STORAGE_KEY, {});
+      const passed = loaded.message === 'Hello World' &&
+                     loaded.number === 42 &&
+                     JSON.stringify(loaded.array) === JSON.stringify([1, 2, 3]);
+
+      showResult('result1', passed, `
+        保存数据: ${JSON.stringify(testData)}
+        <br>读取数据: ${JSON.stringify(loaded)}
+        <br>对比结果: ${passed ? '数据完全一致' : '数据不匹配'}`);
+    }
+
+    // 测试 2: 数据持久化
+    function testPersistence() {
+      // 模拟之前的代码逻辑
+      const responses = [
+        { role: 'user', content: '测试消息1', time: Date.now() - 100000 },
+        { role: 'assistant', content: '这是助手回复1', time: Date.now() - 90000 }
+      ];
+
+      saveToStorage(STORAGE_KEY, responses);
+
+      // 模拟页面刷新 - 清除内存中的数据
+      const freshResponses = loadFromStorage(STORAGE_KEY, []);
+
+      const passed = freshResponses.length === 2 &&
+                     freshResponses[0].role === 'user' &&
+                     freshResponses[1].role === 'assistant';
+
+      showResult('result2', passed, `
+        模拟刷新前: ${responses.length} 条消息
+        <br>刷新后读取: ${freshResponses.length} 条消息
+        <br>数据完整性: ${passed ? '✅ 完整' : '❌ 丢失部分数据'}`);
+    }
+
+    // 测试 3: 复杂数据结构
+    function testComplexData() {
+      const complexData = {
+        _version: CURRENT_VERSION,
+        chat_responses: [
+          { role: 'user', content: '```python\nprint("hello")\n```', time: Date.now() },
+          { role: 'assistant', content: 'Python代码执行结果: hello', time: Date.now() }
+        ],
+        rl_metrics: Array.from({ length: 100 }, (_, i) => ({
+          episode: i,
+          reward: Math.random() * 100,
+          loss: Math.random()
+        })),
+        rag_docs: Array.from({ length: 50 }, (_, i) => ({
+          id: i,
+          title: `文档标题 ${i}`,
+          content: '这是文档内容...'.repeat(10)
+        }))
+      };
+
+      saveToStorage(STORAGE_KEY, complexData);
+      const loaded = loadFromStorage(STORAGE_KEY, null);
+
+      const passed = loaded &&
+                    loaded.chat_responses.length === 2 &&
+                    loaded.rl_metrics.length === 100 &&
+                    loaded.rag_docs.length === 50;
+
+      showResult('result3', passed, `
+        复杂数据包含: 2条对话, 100条RL指标, 50条文档
+        <br>读取验证: 对话=${loaded?.chat_responses?.length}, 指标=${loaded?.rl_metrics?.length}, 文档=${loaded?.rag_docs?.length}
+        <br>结果: ${passed ? '✅ 全部正确' : '❌ 数据异常'}`);
+    }
+
+    // 测试 4: JSON 解析失败
+    function testCorruptedJson() {
+      // 模拟损坏的数据
+      localStorage.setItem(STORAGE_KEY, '{ "broken: json');
+
+      const loaded = loadFromStorage(STORAGE_KEY, { fallback: true });
+
+      const passed = loaded.fallback === true;
+
+      showResult('result4', passed, `
+        模拟损坏数据: '{ "broken: json'
+        <br>加载结果: ${JSON.stringify(loaded)}
+        <br>是否正确回退到默认值: ${passed ? '✅ 是' : '❌ 否'}
+
+        <br><br><strong>⚠️ 问题分析:</strong>
+        <br>当 localStorage 中存储的数据无法被 JSON.parse 解析时，
+        <br>代码应该捕获异常并返回默认值，而不是让整个应用崩溃。`);
+
+      // 清理
+      localStorage.removeItem(STORAGE_KEY);
+    }
+
+    // 测试 5: 空值/未定义值
+    function testEmptyValues() {
+      const testCases = [
+        { input: null, desc: 'null 值' },
+        { input: undefined, desc: 'undefined 值' },
+        { input: '', desc: '空字符串' },
+        { input: [], desc: '空数组' },
+        { input: {}, desc: '空对象' }
+      ];
+
+      let allPassed = true;
+      let details = '';
+
+      testCases.forEach(tc => {
+        saveToStorage(STORAGE_KEY, tc.input);
+        const loaded = loadFromStorage(STORAGE_KEY, 'DEFAULT');
+        const passed = JSON.stringify(loaded) !== '"DEFAULT"';
+        allPassed = allPassed && passed;
+        details += `<br>${tc.desc}: ${passed ? '✅ 正常' : '❌ 使用了默认值'}`;
+      });
+
+      showResult('result5', allPassed, `
+        测试各种空值场景:${details}
+        <br><br><strong>⚠️ 问题分析:</strong>
+        <br>当存储 null/undefined 时，JSON.stringify 会将其转换为 null/undefined 字符串，
+        <br>读取时需要正确处理这种情况。`);
+    }
+
+    // 测试 6: 版本不兼容
+    function testVersionMismatch() {
+      // 模拟旧版本数据
+      const oldData = {
+        _version: 1, // 旧版本
+        messages: [{ text: '旧格式数据' }]
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(oldData));
+
+      const loaded = loadFromStorage(STORAGE_KEY, { migrated: true });
+
+      const passed = loaded.migrated === true;
+
+      showResult('result6', passed, `
+        旧版本数据 (_version=1): ${JSON.stringify(oldData)}
+        <br>加载结果: ${JSON.stringify(loaded)}
+        <br>是否触发迁移: ${passed ? '✅ 是 (返回默认数据)' : '❌ 否 (可能使用了不兼容数据)'}
+
+        <br><br><strong>💡 建议:</strong>
+        <br>在数据中添加版本号，当版本不匹配时执行数据迁移逻辑，
+        <br>而不是直接使用旧版本数据导致应用行为异常。`);
+    }
+
+    // 测试 7: 存储配额超限
+    function testQuotaExceeded() {
+      try {
+        // 尝试存储约 6MB 数据 (大多数浏览器限制约 5-10MB)
+        const largeData = 'x'.repeat(6 * 1024 * 1024);
+        localStorage.setItem(STORAGE_KEY, largeData);
+        showResult('result7', true, '✅ 存储成功 (浏览器配额较大)');
+      } catch (e) {
+        const passed = e.name === 'QuotaExceededError';
+        showResult('result7', passed, `
+          ❌ 触发存储配额限制
+          <br>错误类型: ${e.name}
+          <br>错误信息: ${e.message}
+
+          <br><br><strong>⚠️ 问题分析:</strong>
+          <br>当 localStorage 存储空间不足时，会抛出 QuotaExceededError。
+          <br>应用应该捕获此错误并提示用户清理存储空间。`);
+      }
+      localStorage.removeItem(STORAGE_KEY);
+    }
+
+    // 测试 8: 特殊字符处理
+    function testSpecialChars() {
+      const specialData = {
+        emoji: '😀🎉🚀💻',
+        unicode: '中文测试 🇨🇳',
+        quotes: '"双引号" \'单引号\' `反引号`',
+        html: '&lt;script&gt;alert("xss")&lt;/script&gt;',
+        nullChar: '测试\\u0000字符',
+        _version: CURRENT_VERSION
+      };
+
+      saveToStorage(STORAGE_KEY, specialData);
+      const loaded = loadFromStorage(STORAGE_KEY, null);
+
+      const passed = loaded.emoji === specialData.emoji &&
+                     loaded.unicode === specialData.unicode;
+
+      showResult('result8', passed, `
+        特殊字符: ${specialData.emoji}
+        <br>Unicode: ${specialData.unicode}
+        <br>对比结果: ${passed ? '✅ 完全一致' : '❌ 不匹配'}`);
+    }
+
+    // 测试 9: 大数据量性能
+    function testLargeData() {
+      const start = performance.now();
+
+      const largeData = {
+        _version: CURRENT_VERSION,
+        items: Array.from({ length: 10000 }, (_, i) => ({
+          id: i,
+          data: 'x'.repeat(100)
+        }))
+      };
+
+      saveToStorage(STORAGE_KEY, largeData);
+
+      const loadStart = performance.now();
+      const loaded = loadFromStorage(STORAGE_KEY, null);
+      const loadEnd = performance.now();
+
+      const saveTime = (performance.now() - start).toFixed(2);
+      const loadTime = (loadEnd - loadStart).toFixed(2);
+      const dataSize = (JSON.stringify(largeData).length / 1024).toFixed(2);
+
+      const passed = loaded.items.length === 10000;
+
+      showResult('result9', passed, `
+        数据量: ${largeData.items.length} 条记录
+        <br>数据大小: ${dataSize} KB
+        <br>保存耗时: ${saveTime} ms
+        <br>加载耗时: ${loadTime} ms
+        <br>数据完整性: ${passed ? '✅ 完整' : '❌ 丢失'}`);
+    }
+
+    // ==================== 场景模拟 ====================
+
+    function runScenario(scenario) {
+      log(`=== 开始场景: ${scenario} ===`, 'info');
+
+      switch (scenario) {
+        case 'refresh':
+          simulatePageRefresh();
+          break;
+        case 'corrupt':
+          simulateDataCorruption();
+          break;
+        case 'version':
+          simulateVersionUpgrade();
+          break;
+        case 'clear':
+          simulateStorageClear();
+          break;
+        case 'overflow':
+          simulateStorageOverflow();
+          break;
+        case 'all':
+          runAllTests();
+          break;
+      }
+    }
+
+    function simulatePageRefresh() {
+      log('模拟场景: 用户刷新页面', 'warn');
+
+      // 保存当前测试数据
+      const testData = {
+        _version: CURRENT_VERSION,
+        messages: [
+          { role: 'user', content: '我在测试数据持久化', time: Date.now() },
+          { role: 'assistant', content: '好的，让我帮你测试', time: Date.now() }
+        ]
+      };
+
+      saveToStorage(STORAGE_KEY, testData);
+      log('✅ 已保存测试数据', 'success');
+
+      // 模拟刷新 - 清除内存中的数据
+      const freshData = loadFromStorage(STORAGE_KEY, []);
+
+      if (freshData.length === 2) {
+        log('✅ 页面刷新后数据完整恢复', 'success');
+      } else {
+        log('❌ 数据恢复失败', 'error');
+      }
+
+      refreshStoragePreview();
+    }
+
+    function simulateDataCorruption() {
+      log('模拟场景: 数据被意外损坏', 'warn');
+
+      // 先保存正常数据
+      const normalData = { _version: CURRENT_VERSION, value: '正常数据' };
+      saveToStorage(STORAGE_KEY, normalData);
+
+      // 然后用错误数据覆盖
+      localStorage.setItem(STORAGE_KEY, '{ "broken: json');
+
+      // 尝试加载
+      const loaded = loadFromStorage(STORAGE_KEY, { fallback: true });
+
+      if (loaded.fallback) {
+        log('✅ 损坏数据被正确检测，返回默认值', 'success');
+        log('💡 应用不会因为数据损坏而崩溃', 'info');
+      } else {
+        log('⚠️ 检测到数据损坏但可能仍有问题', 'warn');
+      }
+
+      refreshStoragePreview();
+    }
+
+    function simulateVersionUpgrade() {
+      log('模拟场景: 应用版本升级', 'warn');
+
+      // 模拟旧版本数据格式
+      const oldFormat = {
+        _version: 1,
+        chatLog: [
+          { sender: 'user', text: '旧格式消息' }
+        ]
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(oldFormat));
+
+      // 模拟应用启动，尝试加载数据
+      const loaded = loadFromStorage(STORAGE_KEY, []);
+
+      if (loaded.length === 0) {
+        log('✅ 版本不匹配检测成功，应用使用默认数据', 'success');
+        log('💡 旧版本数据不会导致应用异常', 'info');
+      } else {
+        log('⚠️ 可能仍在使用旧版本数据', 'warn');
+      }
+
+      refreshStoragePreview();
+    }
+
+    function simulateStorageClear() {
+      log('模拟场景: 存储被意外清除', 'warn');
+
+      // 模拟某些操作清空了存储
+      localStorage.removeItem(STORAGE_KEY);
+
+      // 尝试加载
+      const loaded = loadFromStorage(STORAGE_KEY, []);
+
+      if (loaded.length === 0) {
+        log('✅ 检测到存储为空，使用空数组作为默认值', 'success');
+        log('💡 应用不会因为存储为空而崩溃', 'info');
+      }
+
+      refreshStoragePreview();
+    }
+
+    function simulateStorageOverflow() {
+      log('模拟场景: 存储空间不足', 'warn');
+
+      // 尝试存储超大数据
+      let overflow = false;
+      try {
+        localStorage.setItem(STORAGE_KEY, 'x'.repeat(10 * 1024 * 1024));
+      } catch (e) {
+        overflow = true;
+        if (e.name === 'QuotaExceededError') {
+          log('✅ 正确捕获存储溢出错误', 'success');
+          log('💡 应用可以提示用户清理存储空间', 'info');
+        }
+      }
+
+      if (!overflow) {
+        log('⚠️ 浏览器配额较大，未触发溢出', 'warn');
+      }
+
+      localStorage.removeItem(STORAGE_KEY);
+      refreshStoragePreview();
+    }
+
+    function runAllTests() {
+      log('=== 运行全部测试 ===', 'info');
+      testBasicSave();
+      setTimeout(() => testPersistence(), 100);
+      setTimeout(() => testComplexData(), 200);
+      setTimeout(() => testCorruptedJson(), 300);
+      setTimeout(() => testEmptyValues(), 400);
+      setTimeout(() => testVersionMismatch(), 500);
+      setTimeout(() => testSpecialChars(), 600);
+      setTimeout(() => {
+        log('=== 全部测试完成 ===', 'success');
+        refreshStoragePreview();
+      }, 700);
+    }
+
+    // ==================== 初始化 ====================
+    document.addEventListener('DOMContentLoaded', () => {
+      log('🧪 LocalStorage 测试套件已就绪', 'info');
+      refreshStoragePreview();
+
+      // 检查是否有待恢复的测试数据
+      const lastTest = sessionStorage.getItem('lastTest');
+      if (lastTest) {
+        log(`📌 检测到上次测试中断: ${lastTest}`, 'warn');
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Agent 训练仪表盘</title>
+  <link rel="stylesheet" href="/dashboard.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">📊</span>
+      <div>
+        <h1>AI Agent 训练仪表盘</h1>
+        <span class="subtitle" id="generated-at">—</span>
+      </div>
+    </div>
+    <div class="controls">
+      <span class="history-badge" id="history-badge">—</span>
+      <label class="auto-refresh">
+        历史范围
+        <select id="history-range" class="btn btn-ghost">
+          <option value="50">最近 50 条</option>
+          <option value="200" selected>最近 200 条</option>
+          <option value="2000">全部历史</option>
+        </select>
+      </label>
+      <label class="auto-refresh">
+        <input type="checkbox" id="auto-refresh" checked>
+        每 15s 自动刷新
+      </label>
+      <button id="btn-refresh" class="btn">立即刷新</button>
+      <button id="btn-key" class="btn btn-ghost" title="设置开发者 API Key">🔑 Key</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="error-banner" class="banner hidden"></section>
+
+    <!-- 汇总卡片 -->
+    <section class="cards" id="summary-cards">
+      <div class="card"><div class="card-label">经验总数</div><div class="card-value" id="kpi-experiences">—</div></div>
+      <div class="card"><div class="card-label">Episode 数</div><div class="card-value" id="kpi-episodes">—</div></div>
+      <div class="card"><div class="card-label">平均奖励</div><div class="card-value" id="kpi-reward">—</div></div>
+      <div class="card"><div class="card-label">成功率</div><div class="card-value" id="kpi-success">—</div></div>
+      <div class="card"><div class="card-label">策略更新次数</div><div class="card-value" id="kpi-updates">—</div></div>
+      <div class="card"><div class="card-label">对话质量反馈</div><div class="card-value" id="kpi-feedback">—</div><div class="card-sub" id="kpi-feedback-avg"></div></div>
+    </section>
+
+    <!-- 训练曲线 -->
+    <section class="grid-2">
+      <div class="panel">
+        <h2>Episode 累计奖励</h2>
+        <div class="chart-wrap"><canvas id="chart-rewards"></canvas></div>
+        <p class="hint">每个 episode 的总奖励（RL↔对话评估闭环产出的真实经验），横轴为真实时间</p>
+      </div>
+      <div class="panel">
+        <h2>Loss 曲线（PPO）</h2>
+        <div class="chart-wrap"><canvas id="chart-loss"></canvas></div>
+        <p class="hint">每次策略训练的 policyLoss / valueLoss</p>
+      </div>
+      <div class="panel">
+        <h2>策略熵（探索度）</h2>
+        <div class="chart-wrap"><canvas id="chart-entropy"></canvas></div>
+        <p class="hint">熵越高策略探索性越强，训练后期通常缓慢下降</p>
+      </div>
+      <div class="panel">
+        <h2>工具成功率</h2>
+        <div class="chart-wrap"><canvas id="chart-tools"></canvas></div>
+        <p class="hint">基于执行流真实成败统计（非硬编码）</p>
+      </div>
+    </section>
+
+    <!-- 明细 -->
+    <section class="grid-2">
+      <div class="panel">
+        <h2>最近经验奖励</h2>
+        <table class="table" id="table-rewards"><thead><tr><th>#</th><th>奖励</th></tr></thead><tbody></tbody></table>
+      </div>
+      <div class="panel">
+        <h2>评估器统计</h2>
+        <table class="table" id="table-dialogue"><thead><tr><th>指标</th><th>值</th></tr></thead><tbody></tbody></table>
+      </div>
+    </section>
+  </main>
+
+  <!-- Key 输入对话框 -->
+  <dialog id="key-dialog">
+    <h2>开发者 API Key</h2>
+    <p class="hint">后端需启用 DEVELOPER_MODE=true 并配置 DEVELOPER_API_KEY；Key 仅保存在浏览器 localStorage。</p>
+    <input type="password" id="key-input" placeholder="DEVELOPER_API_KEY" autocomplete="off">
+    <div class="dialog-actions">
+      <button class="btn btn-ghost" id="key-cancel">取消</button>
+      <button class="btn" id="key-save">保存并刷新</button>
+    </div>
+  </dialog>
+
+  <script src="/vendor/chart.umd.min.js"></script>
+  <script src="/dashboard.js"></script>
+</body>
+</html>

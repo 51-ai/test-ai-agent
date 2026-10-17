@@ -1,0 +1,59 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Runtime
+runtime/
+
+# Build outputs
+dist/
+**/dist/
+dist-electron/
+release/
+build/
+
+# Environment files
+.env
+.env.local
+.env.development
+.env.production
+.env.*.local
+
+# Logs
+*.log
+logs/
+**/*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Local agent memory / private notes (do NOT publish)
+.workbuddy/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Electron
+electron/dist/
+app.asar
+
+# Database
+data/
+*.db
+data/mongodb/
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Cache
+.cache/
+.parcel-cache/
+
+# TypeScript
+*.tsbuildinfo
