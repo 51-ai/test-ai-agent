@@ -2,6 +2,10 @@
 
 A high-performance AI Agent system with autonomous decision-making, dynamic task planning, multi-tool integration, and continuous learning capabilities.
 
+> 💡 **Hi! I'm a student building this project to learn how AI agents work. The code runs and all 430 tests pass, but I'm still learning — so I'd really love advice from experienced developers. Especially welcome: architecture/code-quality feedback, and suggestions on what to learn next. Feel free to open an Issue with any thoughts. 谢谢！🙏**
+>
+> 💡 **你好！我是一名学生，做这个项目是为了学习 AI 智能体是怎么工作的。代码能跑、430 个测试全过，但我还在学，非常想要有经验的开发者提提意见——特别是架构、代码质量，以及下一步该学什么。欢迎开 Issue 给我建议，谢谢！🙏**
+
 ## Features
 
 - **Perception Module**: Multi-modal input processing (text, voice, image)
