@@ -56,7 +56,7 @@ function runProbe(command: string, args: string[]): Promise<boolean> {
  *   用于修复第十二轮 P1：非 root 下 `unshare -n` 直接 Operation not permitted 的功能回归。
  * - 两者都不可用 → 'none'，调用方必须 fail closed。
  */
-async function probeSandboxCapability(): Promise<SandboxCapability> {
+export async function probeSandboxCapability(): Promise<SandboxCapability> {
   if (cachedCapability !== null) return cachedCapability;
 
   if (process.platform !== 'linux') {

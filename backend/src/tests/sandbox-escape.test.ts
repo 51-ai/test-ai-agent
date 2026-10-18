@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@jest/globals';
-import { codeExecutorTool } from '../core/tools/external/CodeExecutorTool';
+import { codeExecutorTool, probeSandboxCapability } from '../core/tools/external/CodeExecutorTool';
 
 describe('CodeExecutorTool 沙箱逃逸防护', () => {
   // 实测复现的逃逸 payload
@@ -166,24 +166,25 @@ describe('CodeExecutorTool 沙箱逃逸防护', () => {
     }
   });
 
-  describe('安全代码执行（按平台区分安全模型）', () => {
-    const isLinux = process.platform === 'linux';
-
+  describe('安全代码执行（按真实沙箱能力区分安全模型）', () => {
     for (const { name, code, expected } of safeCode) {
       it(name, async () => {
+        const capability = await probeSandboxCapability();
+        const canRun = capability !== 'none';
+
         const result = await codeExecutorTool.execute('test', {
           code,
           language: 'javascript',
           timeout: 3000,
         });
 
-        if (isLinux) {
-          // Linux 具备网络隔离能力（unshare -n / -Urn），安全代码应正常执行
+        if (canRun) {
+          // 具备网络隔离能力（unshare -n / -Urn），安全代码应正常执行
           expect(result.success).toBe(true);
           expect(result.result?.result).toEqual(expected);
         } else {
-          // 非 Linux（Windows/macOS）无网络隔离能力，必须 fail closed 拒绝执行
-          // （第十二轮 P0#1：绝不退化到裸 node --permission）
+          // 无网络隔离能力（Windows、macOS、或 CI runner 禁用 user namespace），
+          // 必须 fail closed 拒绝执行（第十二轮 P0#1：绝不退化到裸 node --permission）
           expect(result.success).toBe(false);
           expect(result.error).toContain('网络隔离');
         }
@@ -192,9 +193,10 @@ describe('CodeExecutorTool 沙箱逃逸防护', () => {
   });
 
   describe('第十二轮：无隔离能力时 fail closed（P0#1）', () => {
-    it('非 Linux 平台应拒绝执行并提示仅支持 Linux/容器环境', async () => {
-      if (process.platform === 'linux') {
-        // Linux 上具备隔离能力，本用例不适用
+    it('无网络隔离能力时应拒绝执行并提示仅支持 Linux/容器环境', async () => {
+      const capability = await probeSandboxCapability();
+      if (capability !== 'none') {
+        // 具备隔离能力，本用例不适用
         return;
       }
       const result = await codeExecutorTool.execute('test', {

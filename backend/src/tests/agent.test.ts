@@ -10,6 +10,7 @@ jest.mock('../services/LLMService', () => ({
 }));
 
 import { Agent } from '../core/Agent';
+import { probeSandboxCapability } from '../core/tools/external/CodeExecutorTool';
 
 describe('Agent', () => {
   let agent: Agent;
@@ -73,16 +74,18 @@ describe('Agent', () => {
       expect(response.content).toContain('仅限管理员');
     });
 
-    it('admin 用户：Linux 正常执行；非 Linux 因无网络隔离 fail closed（第十二轮 P0#1）', async () => {
+    it('admin 用户：具备隔离能力时正常执行；否则因无网络隔离 fail closed（第十二轮 P0#1）', async () => {
       const response = await agent.processInput(codeInput, 'user1', 'admin');
 
-      if (process.platform === 'linux') {
-        // Linux 具备网络隔离能力（unshare netns），应真实执行
+      const capability = await probeSandboxCapability();
+      if (capability !== 'none') {
+        // 具备网络隔离能力（unshare netns），应真实执行
         expect(response.content).toContain('执行结果');
         expect(response.content).toContain('42');
       } else {
-        // Windows/macOS 无网络隔离能力，CodeExecutorTool fail closed，
-        // Agent 捕获后返回"执行错误：…网络隔离…"，绝不退化到裸 node --permission
+        // 无网络隔离能力（Windows、macOS、或 CI runner 禁用 user namespace），
+        // CodeExecutorTool fail closed，Agent 捕获后返回"执行错误：…网络隔离…"，
+        // 绝不退化到裸 node --permission
         expect(response.content).toContain('执行错误');
         expect(response.content).toContain('网络隔离');
       }
